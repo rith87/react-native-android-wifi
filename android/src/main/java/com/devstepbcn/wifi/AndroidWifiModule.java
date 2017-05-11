@@ -170,7 +170,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
         lock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MyFlair Lock");
         lock.acquire();
 
-        boolean enableNetwork = wifi.enableNetwork(i.networkId, true);
+        boolean enableNetwork = wifi.enableNetwork(networkId, true);
         if ( !enableNetwork ) {
             Log.d(LOG_TAG, "Failed to enable");
             ssidFound.invoke(false);
