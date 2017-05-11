@@ -166,15 +166,10 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
         }
     }
 
-    public void connect(int networkId, final String ssid, final Callback ssidFound) {
+    @ReactMethod
+    public void bind(final String ssid, final Callback ssidFound) {
         lock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MyFlair Lock");
         lock.acquire();
-
-        boolean enableNetwork = wifi.enableNetwork(networkId, true);
-        if ( !enableNetwork ) {
-            Log.d(LOG_TAG, "Failed to enable");
-            ssidFound.invoke(false);
-        };
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             NetworkRequest.Builder builder = new NetworkRequest.Builder();
@@ -201,6 +196,31 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
                     }
                 });
         }
+
+    }
+
+    public void connect(int networkId, final String ssid, final Callback ssidFound) {
+        boolean disconnect = wifi.disconnect();
+        if ( !disconnect ) {
+            Log.d(LOG_TAG, "Failed to disconnect");
+            ssidFound.invoke(false);
+        };
+
+
+        boolean enableNetwork = wifi.enableNetwork(networkId, true);
+        if ( !enableNetwork ) {
+            Log.d(LOG_TAG, "Failed to enable");
+            ssidFound.invoke(false);
+        };
+
+        boolean reconnect = wifi.reconnect();
+        if ( !reconnect ) {
+            Log.d(LOG_TAG, "Failed to reconnect");
+            ssidFound.invoke(false);
+        };
+
+
+        bind(ssid, ssidFound);
     }
 
     //Disconnect current Wifi.
@@ -212,7 +232,9 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
             ConnectivityManager.setProcessDefaultNetwork(null);
         }
         wifi.disconnect();
-        lock.release();
+        if (lock != null) {
+            lock.release();
+        }
     }
 
     //This method will return current ssid
