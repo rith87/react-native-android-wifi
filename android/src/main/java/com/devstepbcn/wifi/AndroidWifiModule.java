@@ -168,9 +168,6 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
 
     @ReactMethod
     public void bind(final String ssid, final Callback ssidFound) {
-        lock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MyFlair Lock");
-        lock.acquire();
-
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             NetworkRequest.Builder builder = new NetworkRequest.Builder();
             builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
@@ -200,6 +197,8 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
     }
 
     public void connect(int networkId, final String ssid, final Callback ssidFound) {
+        lock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MyFlair Lock");
+        lock.acquire();
 
         boolean disconnect = wifi.disconnect();
         if ( !disconnect ) {
