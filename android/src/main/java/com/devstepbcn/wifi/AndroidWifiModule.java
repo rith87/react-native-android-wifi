@@ -218,9 +218,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
             Log.d(LOG_TAG, "Failed to reconnect");
             ssidFound.invoke(false);
         };
-
-
-        bind(ssid, ssidFound);
+        ssidFound.invoke(true);
     }
 
     //Disconnect current Wifi.
