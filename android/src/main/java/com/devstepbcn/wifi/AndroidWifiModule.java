@@ -200,6 +200,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
     }
 
     public void connect(int networkId, final String ssid, final Callback ssidFound) {
+
         boolean disconnect = wifi.disconnect();
         if ( !disconnect ) {
             Log.d(LOG_TAG, "Failed to disconnect");
@@ -218,7 +219,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
             Log.d(LOG_TAG, "Failed to reconnect");
             ssidFound.invoke(false);
         };
-        ssidFound.invoke(true);
+        bind(ssid, ssidFound);
     }
 
     //Disconnect current Wifi.
