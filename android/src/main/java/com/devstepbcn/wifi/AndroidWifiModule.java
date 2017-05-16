@@ -73,12 +73,6 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
                         wifiObject.put("frequency", result.frequency);
                         wifiObject.put("level", result.level);
                         wifiObject.put("timestamp", result.timestamp);
-                        //Other fields not added
-                        //wifiObject.put("operatorFriendlyName", result.operatorFriendlyName);
-                        //wifiObject.put("venueName", result.venueName);
-                        //wifiObject.put("centerFreq0", result.centerFreq0);
-                        //wifiObject.put("centerFreq1", result.centerFreq1);
-                        //wifiObject.put("channelWidth", result.channelWidth);
                     } catch (JSONException e) {
                         errorCallback.invoke(e.getMessage());
                     }
@@ -166,8 +160,17 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
         }
     }
 
+    public void getLock() {
+        if (lock == null) {
+            lock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MyFlair Lock");
+            lock.acquire();
+        }
+    }
+
     @ReactMethod
     public void bind(final String ssid, final Callback ssidFound) {
+        getLock();
+        Log.d(LOG_TAG, "Connecting: ");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             NetworkRequest.Builder builder = new NetworkRequest.Builder();
             builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
@@ -197,8 +200,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
     }
 
     public void connect(int networkId, final String ssid, final Callback ssidFound) {
-        lock = wifi.createWifiLock(WifiManager.WIFI_MODE_FULL_HIGH_PERF, "MyFlair Lock");
-        lock.acquire();
+        getLock();
 
         boolean disconnect = wifi.disconnect();
         if ( !disconnect ) {
@@ -207,31 +209,32 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
         };
 
 
+        bind(ssid, ssidFound);
+
         boolean enableNetwork = wifi.enableNetwork(networkId, true);
         if ( !enableNetwork ) {
             Log.d(LOG_TAG, "Failed to enable");
             ssidFound.invoke(false);
         };
-
-        boolean reconnect = wifi.reconnect();
-        if ( !reconnect ) {
-            Log.d(LOG_TAG, "Failed to reconnect");
-            ssidFound.invoke(false);
-        };
-        bind(ssid, ssidFound);
     }
 
     //Disconnect current Wifi.
     @ReactMethod
     public void disconnect() {
+        wifi.disconnect();
+        unbind();
+    }
+
+    @ReactMethod
+    public void unbind() {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
             connectivityManager.bindProcessToNetwork(null);
         } else {
             ConnectivityManager.setProcessDefaultNetwork(null);
         }
-        wifi.disconnect();
         if (lock != null) {
             lock.release();
+            lock = null;
         }
     }
 
