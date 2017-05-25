@@ -102,14 +102,14 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
     //After 10 seconds, a post telling you whether you are connected will pop up.
     //Callback returns true if ssid is in the range
     @ReactMethod
-    public void findAndConnect(String ssid, String password, Callback ssidFound) {
+    public void findAndConnect(String ssid, String password, Boolean bind, Callback ssidFound) {
         List < ScanResult > results = wifi.getScanResults();
         boolean connected = false;
         for (ScanResult result: results) {
             String resultString = "" + result.SSID;
             if (ssid.equals(resultString)) {
                 Log.d(LOG_TAG, "Found WiFi");
-                connectTo(result, password, '"' + ssid + '"', ssidFound);
+                connectTo(result, password, '"' + ssid + '"', bind, ssidFound);
                 break;
             }
         }
@@ -128,7 +128,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
     }
 
     //Method to connect to WIFI Network
-    public void connectTo(ScanResult result, String password, final String ssid, final Callback ssidFound) {
+    public void connectTo(ScanResult result, String password, final String ssid, Boolean bind, final Callback ssidFound) {
         //Make new configuration
         WifiConfiguration conf = new WifiConfiguration();
         conf.SSID = ssid;
@@ -146,14 +146,13 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
             conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         }
         int networkId = wifi.addNetwork(conf);
-        //Remove the existing configuration for this netwrok
         if (networkId != -1) {
-            connect(networkId, ssid, ssidFound);
+            connect(networkId, ssid, bind, ssidFound);
         } else {
             List<WifiConfiguration> mWifiConfigList = wifi.getConfiguredNetworks();
             for( WifiConfiguration i : mWifiConfigList) {
                 if(i.SSID != null && i.SSID.equals(ssid)) {
-                    connect(i.networkId, ssid, ssidFound);
+                    connect(i.networkId, ssid, bind, ssidFound);
                     break;
                 }
             }
@@ -168,19 +167,40 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
     }
 
     @ReactMethod
+    public void forgetSsid(String ssid, Callback cb) {
+        List<WifiConfiguration> mWifiConfigList = wifi.getConfiguredNetworks();
+        for( WifiConfiguration i : mWifiConfigList) {
+            if(i.SSID != null && i.SSID.equals(ssid)) {
+                Log.d(LOG_TAG, "Removing: ");
+                boolean succ = wifi.removeNetwork(i.networkId);
+                cb.invoke(succ);
+                break;
+            }
+        }
+        cb.invoke(false);
+    }
+
+    public void emitBindingEvent(String event) {
+        WritableMap map = Arguments.createMap();
+        map.putString("event", event);
+        getReactApplicationContext()
+            .getJSModule(DeviceEventManagerModule.RCTDeviceEventEmitter.class)
+            .emit("binding-event", map);
+    }
+
+    @ReactMethod
     public void bind(final String ssid, final Callback ssidFound) {
         getLock();
-        Log.d(LOG_TAG, "Connecting: ");
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
             NetworkRequest.Builder builder = new NetworkRequest.Builder();
             builder.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
-
             connectivityManager.requestNetwork(builder.build(), new ConnectivityManager.NetworkCallback() {
+                    private AndroidWifiModule parent;
+                    private boolean bound = false;
                     @Override
                     public void onAvailable(Network network) {
                         NetworkInfo networkInfo = connectivityManager.getNetworkInfo(network);
-                        if (TextUtils.equals(networkInfo.getExtraInfo(), ssid)) {
-                            connectivityManager.unregisterNetworkCallback(this);
+                        if (TextUtils.equals(networkInfo.getExtraInfo(), ssid) && !bound) {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
                                 Log.d(LOG_TAG, "Bound 2: " + networkInfo.getExtraInfo());
                                 connectivityManager.bindProcessToNetwork(network);
@@ -188,34 +208,52 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
                                 ConnectivityManager.setProcessDefaultNetwork(network);
                             }
                             try {
-                                ssidFound.invoke(true);
+                                bound = true;
+                                parent.emitBindingEvent("bound");
                             } catch (Exception e) {
                                 e.printStackTrace();
                             }
                         }
                     }
-                });
+                    public void onLost(Network network) {
+                        if (bound) {
+                            connectivityManager.unregisterNetworkCallback(this);
+                            Log.d(LOG_TAG, "UnBound 2");
+                            bound = false;
+                            parent.unbind();
+                            parent.emitBindingEvent("disconnected");
+                        }
+                    }
+                    public ConnectivityManager.NetworkCallback init(AndroidWifiModule parent) {
+                        this.parent = parent;
+                        return this;
+                    }
+                }.init(this));
         }
-
     }
 
-    public void connect(int networkId, final String ssid, final Callback ssidFound) {
+    public void connect(int networkId, final String ssid, Boolean bind, final Callback ssidFound) {
         getLock();
 
         boolean disconnect = wifi.disconnect();
         if ( !disconnect ) {
             Log.d(LOG_TAG, "Failed to disconnect");
-            ssidFound.invoke(false);
+            ssidFound.invoke("disconnect-failed");
         };
 
-
-        bind(ssid, ssidFound);
+        if (bind) {
+            bind(ssid, ssidFound);
+        }
 
         boolean enableNetwork = wifi.enableNetwork(networkId, true);
         if ( !enableNetwork ) {
             Log.d(LOG_TAG, "Failed to enable");
-            ssidFound.invoke(false);
+            ssidFound.invoke("enable-failed");
         };
+
+        if (!bind) {
+            ssidFound.invoke("finished");
+        }
     }
 
     //Disconnect current Wifi.
