@@ -23,6 +23,9 @@ import android.net.Network;
 import android.net.NetworkCapabilities;
 import android.net.wifi.WifiInfo;
 import android.os.Build;
+import android.content.Intent;
+import android.content.IntentFilter;
+import android.content.BroadcastReceiver;
 import android.content.Context;
 import android.text.TextUtils;
 
@@ -39,13 +42,15 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
     public static final String LOG_TAG = "MyFlair";
 
     //WifiManager Instance
-    WifiManager wifi;
-    WifiLock lock;
-    ConnectivityManager connectivityManager;
+    private WifiManager wifi;
+    private WifiLock lock;
+    private ConnectivityManager connectivityManager;
+    private ReactContext reactCtx;
 
     //Constructor
     public AndroidWifiModule(ReactApplicationContext reactContext) {
         super(reactContext);
+        reactCtx = reactContext;
         wifi = (WifiManager)reactContext.getSystemService(Context.WIFI_SERVICE);
         connectivityManager = (ConnectivityManager) reactContext.getSystemService(Context.CONNECTIVITY_SERVICE);
     }
@@ -82,6 +87,27 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
             successCallback.invoke(wifiArray.toString());
         } catch (IllegalViewOperationException e) {
             errorCallback.invoke(e.getMessage());
+        }
+    }
+
+    //Force WiFi scan
+    @ReactMethod
+    public void startScan(Callback scanFinished) {
+        Boolean result = wifi.startScan();
+        if (result) {
+            reactCtx.registerReceiver(new BroadcastReceiver() {
+                    private Callback cb;
+
+                    @Override
+                    public void onReceive(Context ctx, Intent intent) {
+                        this.cb.invoke();
+                    }
+
+                    public BroadcastReceiver init(Callback finished) {
+                        cb = finished;
+                        return this;
+                    }
+                }.init(scanFinished), new IntentFilter(WifiManager.SCAN_RESULTS_AVAILABLE_ACTION));
         }
     }
 
