@@ -173,11 +173,13 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
         }
         int networkId = wifi.addNetwork(conf);
         if (networkId != -1) {
+            Log.d(LOG_TAG, "Add new network");
             connect(networkId, ssid, bind, ssidFound);
         } else {
             List<WifiConfiguration> mWifiConfigList = wifi.getConfiguredNetworks();
             for( WifiConfiguration i : mWifiConfigList) {
                 if(i.SSID != null && i.SSID.equals(ssid)) {
+                    Log.d(LOG_TAG, "Add existing network");
                     connect(i.networkId, ssid, bind, ssidFound);
                     break;
                 }
@@ -214,6 +216,23 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
             .emit("binding-event", map);
     }
 
+    private String getSSIDAndroidPPlus() {
+        return wifi.getConnectionInfo().getSSID();
+    }
+
+    private void forgetWifiSetupSSID() {
+        List<WifiConfiguration> mWifiConfigList = wifi.getConfiguredNetworks();
+        for( WifiConfiguration i : mWifiConfigList) {
+            if(i.SSID != null && i.SSID.contains("Flair Wifi")) {
+                Log.d(LOG_TAG, "Removing: ");
+                boolean succ = wifi.removeNetwork(i.networkId);
+                if (!succ) {
+                    Log.d(LOG_TAG, "removeNetwork failed");
+                }
+            }
+        }
+    }
+
     @ReactMethod
     public void bind(final String ssid, final Callback ssidFound) {
         getLock();
@@ -226,9 +245,14 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
                     @Override
                     public void onAvailable(Network network) {
                         NetworkInfo networkInfo = connectivityManager.getNetworkInfo(network);
-                        if (TextUtils.equals(networkInfo.getExtraInfo(), ssid) && !bound) {
+                        String current_ssid = networkInfo.getExtraInfo();
+                        if (current_ssid == null) {
+                            current_ssid = getSSIDAndroidPPlus();
+                        }
+                        Log.d(LOG_TAG, "ssid: " + ssid + "; extra info: " + current_ssid);
+                        if (TextUtils.equals(current_ssid, ssid) && !bound) {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                                Log.d(LOG_TAG, "Bound 2: " + networkInfo.getExtraInfo());
+                                Log.d(LOG_TAG, "Bound 2: " + current_ssid);
                                 connectivityManager.bindProcessToNetwork(network);
                             } else {
                                 ConnectivityManager.setProcessDefaultNetwork(network);
@@ -259,6 +283,7 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
     }
 
     public void connect(int networkId, final String ssid, Boolean bind, final Callback ssidFound) {
+        Log.d(LOG_TAG, "In connect()");
         getLock();
 
         boolean disconnect = wifi.disconnect();
