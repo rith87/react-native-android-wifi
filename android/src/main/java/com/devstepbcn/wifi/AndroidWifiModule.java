@@ -171,6 +171,8 @@ public class AndroidWifiModule extends ReactContextBaseJavaModule {
         } else {
             conf.allowedKeyManagement.set(WifiConfiguration.KeyMgmt.NONE);
         }
+        // Forget any Flair Wifi network that the app has connected to previously (See TECH-2205)
+        forgetWifiSetupSSID();
         int networkId = wifi.addNetwork(conf);
         if (networkId != -1) {
             Log.d(LOG_TAG, "Add new network");
